@@ -8,14 +8,15 @@ class IntersectionLineLine:
         
     def get_cartesian_intersection(self):
         # Solve for t and s in the parametric equations of the lines
-        A = np.array([self.vector1, -self.vector2]).T
+        A = np.array([self.vector1, -self.vector2])
         b = np.array(self.point2 - self.point1)
         try:
             t, s = np.linalg.solve(A, b)
             intersection_point = self.point1 + t * self.vector1
             return intersection_point
         except np.linalg.LinAlgError:
-            return None  # No intersection or infinite intersections
+            intersection_point = self.point1 + 10000000000 * self.vector1
+            return intersection_point   #  infinite intersections given as very big t
     def get_polar_intersection(self):
         intersection_point=self.get_cartesian_intersection()
         return np.linalg.norm(intersection_point), np.arctan2(intersection_point[1], intersection_point[0])

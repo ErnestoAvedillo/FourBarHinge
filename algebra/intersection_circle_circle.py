@@ -14,11 +14,11 @@ class IntersectionCircleCircle:
 		vector_P1_p2 = self.point2 - self.point1
 		d = np.linalg.norm(vector_P1_p2)
 		if d > self.circle1 + self.circle2:
-			return None
+			return np.array([None,None]),np.array(([None,None]))
 		if d < abs(self.circle1 - self.circle2):
-			return None
+			return np.array([None,None]),np.array(([None,None]))
 		if d == 0.0:
-			return None
+			return np.array([None,None]),np.array(([None,None]))
 		angle1 = (self.circle1**2 - self.circle2**2 + d**2) / (2 * d * self.circle1)
 		angle_p1_p2 = math.atan2(vector_P1_p2[1],vector_P1_p2[0])
 		angle_v1 = angle_p1_p2 - math.acos(angle1)

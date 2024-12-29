@@ -2,7 +2,7 @@ import math
 import numpy as np
 from algebra.vector import Vector
 from algebra.uniones import Union
-from algebra.diverse import get_angle_vector
+from algebra.diverse import get_angle_vector, convert_vector_to_unitary, convert_cartessian_to_polar, convert_polar_to_cartessian
 
   
 class Barra(Vector, Union):
@@ -12,7 +12,9 @@ class Barra(Vector, Union):
 		unionpoint = Union(end_point.get_point() - start_point.get_point())
 		self.__vector = Vector (unionpoint, displacement=self._displacement, rotation = self._rotation)
 		self.actuator = []
-		self.__cir = start_point
+		self.__cir = start_point.get_point()
+		self._gravity_center = convert_vector_to_unitary(self.__vector.get_cartessian_vector()) * np.linalg.norm(self.__vector.get_cartessian_vector()) / 2
+		self._weight = 0
 
 	def	set_new_geometry(self, end_point:Union, start_point:Union = None):
 		if start_point is not None:
@@ -48,6 +50,12 @@ class Barra(Vector, Union):
 		union_end = Union(self._displacement.get_point() + self.__vector.get_cartessian_vector())
 		return union_end
 
+	def get_start_torque(self):
+		return self.__displacement.get_torque()
+
+	def get_end_torque(self):
+		return self.__vector.get_torque()
+
 	def get_length(self):
 		return self.__vector.get_polar_vector()[0]
 
@@ -81,8 +89,11 @@ class Barra(Vector, Union):
 		self.__vector = length * np.array([math.cos(self.angle + self.rotation), math.sin(self.angle + self.rotation)])
 		self.length = length
 
-	def get_end_point(self):
-		return self.__vector.get_cartessian_end_point()
+	def get_cartessian_vector(self):
+		return self.__vector.get_cartessian_vector()
+
+	def get_polar_vector(self):
+		return self.__vector.get_polar_vector()
 
 	def get_array_to_plot(self):
 		output = np.array([self.get_start_point(), self.get_end_point()]).T
@@ -90,10 +101,26 @@ class Barra(Vector, Union):
 			vector = np.array([self.get_actuator_point(actuator),self.get_end_point()])
 			output = np.concatenate((output,vector.T),axis = 1)
 		return output
+
 	def set_cir(self, cir:np):
-		self.__cir =  cir
+		self.__cir =  cir - self._displacement.get_point()
+
 	def get_cir(self):
-		return self.__cir
+		return self.__cir + self._displacement.get_point()
+
+	def set_gravity_center (self, gravity_center):
+		self._gravity_center = gravity_center - self.__displacement
+
+	def get_gravity_center (self):
+		polar_GC = convert_cartessian_to_polar(self._gravity_center) + np.array([0, self._rotation])
+		cartessian_CG = convert_polar_to_cartessian(polar_GC) + self._displacement
+		return cartessian_CG
+
+	def set_weight (self, weight):
+		self._weight = weight
+
+	def get_weight (self):
+		return self._weight
 
 
 """

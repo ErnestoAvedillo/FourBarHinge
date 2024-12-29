@@ -3,11 +3,20 @@ import numpy as np
 class DistancePointLine:
     def __init__(self, point:np, vector:np, vector_point:np):
         self.point = point
-        self.vector = vector / np.linalg.norm(vector)
+        if np.linalg.norm(vector) == 0:
+            self.vector = np.zeros(2)
+        else:
+            self.vector = vector / np.linalg.norm(vector)
         self.vector_point = vector_point
     def get_distance(self)->float:
         vector_point1_point2 = self.point - self.vector_point
-        return (np.cross(self.vector, vector_point1_point2) )
+        distance = np.cross(self.vector, vector_point1_point2) 
+        return (distance)
+    def get_vector_distance(self)->np.array:
+        distance = self.get_distance()
+        vector_perp = np.dot(self.vector, np.array([[0,-1],[1,0]]))
+        vector_distance = vector_perp * distance
+        return (vector_distance)
     def get_cartessian_proyection_point(self)->np:
         if self.get_distance() == 0.0:
             return self.point
