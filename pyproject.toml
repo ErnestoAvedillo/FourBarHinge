@@ -1,0 +1,66 @@
+[project]
+name = "fourbarhinge"
+version = "0.1.0"
+description = "Four-bar hinge library: kinematics, dynamics (modern-robotics), joint reactions, spring effort curves and path synthesis."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Ernesto Avedillo", email = "eavedillo@yahoo.es" },
+]
+keywords = ["four-bar", "linkage", "hinge", "bisagra", "mechanism", "springs", "dynamics", "synthesis", "modern-robotics"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Manufacturing",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "matplotlib>=3.8",
+    "modern-robotics>=1.1.1",
+    "numpy>=2.0",
+    "pydantic>=2.0",
+    "scipy>=1.13",
+]
+
+[project.urls]
+Homepage = "https://github.com/ErnestoAvedillo/FourBarHinge"
+Repository = "https://github.com/ErnestoAvedillo/FourBarHinge"
+Issues = "https://github.com/ErnestoAvedillo/FourBarHinge/issues"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "flake8>=7.0",
+    "flake8-pyproject>=1.2",
+    "build>=1.2",
+    "twine>=6.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fourbarhinge"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/fourbarhinge",
+    "tests",
+    "examples",
+    "README.md",
+    "LICENSE",
+    "makefile",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.flake8]
+max-line-length = 100
