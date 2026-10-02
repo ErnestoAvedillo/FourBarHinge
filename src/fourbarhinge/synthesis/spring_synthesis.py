@@ -81,6 +81,8 @@ class SpringSynthesisResult:
     rms_error: float
     max_error: float
     spring_ranges: list[str] = field(default_factory=list)
+    # Punto fijo S donde se apoya la fuerza (None: fuerza tangente)
+    force_origin: Point | None = None
 
     def summary(self) -> str:
         lines = [f"error RMS = {self.rms_error:.4g}  "
@@ -216,4 +218,5 @@ class SpringSynthesis:
             rms_error=float(np.sqrt(np.mean(error**2))),
             max_error=float(np.max(np.abs(error))),
             spring_ranges=ranges,
+            force_origin=self.curve.force_origin,
         )

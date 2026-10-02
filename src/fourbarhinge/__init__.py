@@ -18,7 +18,7 @@ from .plots.plots import FourBarPlotter, Units
 from .plots.synthesis_plots import SynthesisPlotter
 from .synthesis import (
     CouplerPathSynthesis, LinkBounds, PathSynthesisResult,
-    EffortTravelCurve, SpringSynthesis, SpringSynthesisResult,
+    CouplerMotionSynthesis, MotionSynthesisResult, EffortTravelCurve, SpringSynthesis, SpringSynthesisResult,
     CompressionSpringDesign, TorsionSpringDesign,
 )
 
@@ -33,7 +33,8 @@ __all__ = [
     "FourBarKinematics", "FourBarDynamics", "FourBarReactions",
     "ReactionResult", "ReturnSimulation", "ReturnTrajectory",
     "FourBarPlotter", "Units", "SynthesisPlotter", "CouplerPathSynthesis", "LinkBounds",
-    "PathSynthesisResult", "EffortTravelCurve", "SpringSynthesis",
+    "PathSynthesisResult", "CouplerMotionSynthesis", "MotionSynthesisResult",
+    "EffortTravelCurve", "SpringSynthesis",
     "SpringSynthesisResult", "CompressionSpringDesign",
     "TorsionSpringDesign",
 ]

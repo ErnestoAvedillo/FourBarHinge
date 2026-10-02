@@ -32,8 +32,11 @@ Visit the library on GitHub https://github.com/ErnestoAvedillo/FourBarHinge and 
   energy balance.
 - **Path synthesis**: find the link lengths, pivots and coupler point so that
   the coupler point follows a desired travel.
+- **Motion synthesis**: best-fit geometry from many synchronised positions
+  of two coupler points (guides the whole coupler, not just one point).
 - **Spring synthesis**: place and size compression/torsion springs to match a
-  target effort–travel curve.
+  target effort–travel curve, with the force tangent to the path or held at
+  a fixed bolt.
 - **A4 PDF reports** (matplotlib).
 
 ## Structure
@@ -44,7 +47,8 @@ src/fourbarhinge/
 ├── kinematics/    FourBarKinematics
 ├── dynamics/      FourBarDynamics (modern-robotics), FourBarReactions
 ├── simulation/    ReturnSimulation (free return to home)
-├── synthesis/     CouplerPathSynthesis, EffortTravelCurve, SpringSynthesis
+├── synthesis/     CouplerPathSynthesis, CouplerMotionSynthesis,
+│                  EffortTravelCurve, SpringSynthesis
 └── plots/         FourBarPlotter, SynthesisPlotter (A4 PDF reports)
 
 examples/          Complete worked examples
@@ -174,6 +178,36 @@ At least five target points are needed for a well-determined problem; with
 fewer points one of the infinite solutions is returned. Fixing the ground
 pivots or the input angles (`theta_inputs`) reduces the unknowns.
 
+### Motion synthesis (two coupler tracks)
+
+Give many synchronised positions of two coupler points P and Q; the
+best-fitting geometry is returned (least squares). The two tracks fix the
+coupler's position and rotation, so the problem is better posed than with
+a single point.
+
+```python
+from fourbarhinge import CouplerMotionSynthesis
+
+result = CouplerMotionSynthesis(
+    track_p, track_q,                       # (n, 2) each, same instants
+    LinkBounds(min_length=15, max_length=120,
+               min_transmission_angle=np.deg2rad(20)),
+    weights=None,                           # optional (n,): e.g. ends heavier
+    ground_pivot_a=Point(x=0, y=0),         # optional fixed pivots
+    ground_pivot_d=Point(x=60, y=0),
+).solve()
+print(result.summary())                     # also Q local and |PQ| scatter
+geometry = result.to_geometry(linear_density=1.6e-4)
+```
+
+Each side (A–B and D–C) is first fitted separately: a coupler point whose
+positions lie on a circle gives a bar, with the circle centre as the
+fixed pivot. Pairs of sides are then refined as a complete mechanism on the
+P and Q position error. Assembly between poses, monotonic input and the
+transmission angle are checked. With noisy data and a small coupler
+rotation, quite different geometries can fit equally well: fix the pivots
+or narrow the bounds to choose one.
+
 ### Effort–travel curve and spring synthesis
 
 ```python
@@ -210,16 +244,33 @@ print(springs.summary())
 
 The effort is the static force at the coupler point, tangent to its path:
 `F > 0` means it must be pushed along the travel, `F < 0` means the hinge
-moves by itself. The spring working ranges (length, force, deflection) are
-reported so the springs can then be designed, for example with
+moves by itself.
+
+If the force is held at a fixed bolt S (a strut, cylinder or rod pinned to
+the frame), pass `force_origin=Point(...)` (global). The force then acts
+along the line S → P (`F > 0` pushes P away from S) and the travel is the
+stroke `|SP| − |SP|₀`. `bar=` puts P on another moving bar, and
+`curve.actuator(i)` gives the equivalent `Actuator` at sample `i` to check
+against `FourBarDynamics.solve_required_effort`.
+
+```python
+curve = EffortTravelCurve(dynamics, Point(x=50, y=20), theta_start,
+                          theta_end, force_origin=Point(x=80, y=-40))
+```
+
+The spring working ranges (length, force, deflection) are reported so the
+springs can then be designed, for example with
 [springcalc](https://pypi.org/project/springcalc/).
 
 ## Examples
 
 ```bash
-uv run python examples/ejemplo_completo.py    # every analysis step
-uv run python examples/informe_bisagra.py     # dynamic analysis PDF report
-uv run python examples/sintesis_bisagra.py    # path + spring synthesis
+uv run python examples/ejemplo_completo.py      # every analysis step
+uv run python examples/informe_bisagra.py       # dynamic analysis PDF report
+uv run python examples/sintesis_bisagra.py      # path + spring synthesis
+uv run python examples/sintesis_trayectoria.py  # path -> geometry (4 cases, ~2 min)
+uv run python examples/sintesis_movimiento.py   # P and Q tracks -> geometry (4 cases)
+uv run python examples/sintesis_muelles.py      # effort-travel -> springs (4 cases)
 ```
 
 PDF reports are written to `output/`.

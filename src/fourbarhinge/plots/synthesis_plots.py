@@ -61,6 +61,7 @@ class SynthesisPlotter:
     def plot_effort_travel(
         self, ax: Axes, travel: np.ndarray, effort: np.ndarray,
         target: np.ndarray | None = None,
+        from_fixed_point: bool = False,
     ) -> None:
         style_axes(ax)
         if target is not None:
@@ -69,8 +70,12 @@ class SynthesisPlotter:
         ax.plot(travel, effort, color=EFFORT_COLOR, linewidth=1.8,
                 label="Con los muelles")
         ax.axhline(0.0, color=INK_2, linewidth=0.8)
-        ax.set_xlabel(f"Recorrido de P [{self.units.length}]")
-        ax.set_ylabel(f"Esfuerzo tangente [{self.units.force}]")
+        if from_fixed_point:
+            ax.set_xlabel(f"Carrera S–P [{self.units.length}]")
+            ax.set_ylabel(f"Esfuerzo en la línea S–P [{self.units.force}]")
+        else:
+            ax.set_xlabel(f"Recorrido de P [{self.units.length}]")
+            ax.set_ylabel(f"Esfuerzo tangente [{self.units.force}]")
         ax.legend(frameon=False, fontsize=8, ncol=2, loc="lower left",
                   bbox_to_anchor=(0, 1.0), labelcolor=INK_2)
 
@@ -131,13 +136,18 @@ class SynthesisPlotter:
         return fig
 
     def page_springs(self, result: SpringSynthesisResult) -> Figure:
-        fig = new_page(
-            "Curva esfuerzo – recorrido",
-            "Fuerza estática en P, tangente a su trayectoria. "
-            "F > 0: hay que empujar en el sentido del recorrido.")
+        origin = result.force_origin
+        if origin is None:
+            subtitle = ("Fuerza estática en P, tangente a su trayectoria. "
+                        "F > 0: hay que empujar en el sentido del recorrido.")
+        else:
+            subtitle = (f"Fuerza estática en P apoyada en S = ({origin.x:.1f},"
+                        f" {origin.y:.1f}). F > 0: empuja (aleja P de S).")
+        fig = new_page("Curva esfuerzo – recorrido", subtitle)
         ax = fig.add_axes((0.12, 0.55, 0.8, 0.32))
         target = None if np.all(np.isnan(result.target)) else result.target
-        self.plot_effort_travel(ax, result.travel, result.effort, target)
+        self.plot_effort_travel(ax, result.travel, result.effort, target,
+                                from_fixed_point=origin is not None)
         u = self.units
         rows = [("Muelle", "Constante", "Libre", "Anclajes (local)")]
         for k, s in enumerate(result.compression_springs, start=1):

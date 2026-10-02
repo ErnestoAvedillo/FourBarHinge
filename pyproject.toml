@@ -1,6 +1,6 @@
 [project]
 name = "fourbarhinge"
-version = "0.1.0"
+version = "0.1.1"
 description = "Four-bar hinge library: kinematics, dynamics (modern-robotics), joint reactions, spring effort curves and path synthesis."
 readme = "README.md"
 requires-python = ">=3.11"

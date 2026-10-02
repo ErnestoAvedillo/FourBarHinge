@@ -1,13 +1,22 @@
 
 """
-Curva esfuerzo-recorrido en un punto P del acoplador.
+Curva esfuerzo-recorrido en un punto P (normalmente del acoplador).
 
-Recorrido s: longitud de arco recorrida por P desde theta_start.
-Esfuerzo F: fuerza estática en P, tangente a la trayectoria y en el
-sentido del recorrido, necesaria para mantener el equilibrio con muelles,
-gravedad y cargas externas (ṫi = 0, ẗi = 0).
-    F > 0: hay que empujar en el sentido del recorrido.
-    F < 0: el mecanismo avanza solo (hay que frenarlo).
+Esfuerzo F: fuerza estática en P necesaria para mantener el equilibrio
+con muelles, gravedad y cargas externas (ṫi = 0, ẗi = 0). Dos modos:
+
+Fuerza tangente (por defecto):
+    s: longitud de arco recorrida por P desde theta_start.
+    F: tangente a la trayectoria de P, en el sentido del recorrido.
+       F > 0: hay que empujar en el sentido del recorrido.
+       F < 0: el mecanismo avanza solo (hay que frenarlo).
+
+Fuerza apoyada en un punto fijo S (force_origin, p.ej. un bulón):
+    s: carrera = |SP| - |SP|₀ (> 0 alarga, < 0 acorta la línea S-P).
+    F: en la línea S -> P.
+       F > 0: empuja (aleja P de S; cilindro/amortiguador a compresión).
+       F < 0: tira (acerca P a S).
+    El trabajo sigue siendo ∫F·ds.
 
 Para poder optimizar la colocación de muelles, la cinemática de cada
 muestra se calcula una sola vez y la contribución de los muelles se
@@ -20,6 +29,7 @@ import numpy as np
 from ..dynamics.dynamics import FourBarDynamics
 from ..models.barra import Point
 from ..models.constants import BarId
+from ..models.external_force import Actuator
 from ..models.compression_spring import CompressionSpring
 from ..models.torsion_spring import TorsionSpring
 
@@ -48,21 +58,23 @@ class KinematicTable:
         return self.origin[:, bar] + np.stack([c * x - s * y, s * x + c * y],
                                               axis=1)
 
+    def point_rate(self, bar: BarId, point: np.ndarray) -> np.ndarray:
+        """dp/dti (n,2) de un punto de `bar` dado en global (n,2)."""
+        if bar == BarId.GROUND:
+            return np.zeros_like(point)
+        g = self.gamma
+        if bar == BarId.INPUT:
+            return g[:, :1] * perpendicular(point - self.joint_a)
+        if bar == BarId.COUPLER:
+            return (g[:, :1] * perpendicular(self.joint_b - self.joint_a)
+                    + g[:, 1:2] * perpendicular(point - self.joint_b))
+        return g[:, 2:3] * perpendicular(point - self.joint_d)
+
     def reduced_force(self, bar: BarId, point: np.ndarray,
                       force: np.ndarray) -> np.ndarray:
         """Γᵀ·J_pᵀ·F para fuerza F (n,2) aplicada en point (n,2) global."""
-        if bar == BarId.GROUND:
-            return np.zeros(len(point))
-        g = self.gamma
-        if bar == BarId.INPUT:
-            v = g[:, :1] * perpendicular(point - self.joint_a)
-        elif bar == BarId.COUPLER:
-            v = (g[:, :1] * perpendicular(self.joint_b - self.joint_a)
-                 + g[:, 1:2] * perpendicular(point - self.joint_b))
-        else:
-            v = g[:, 2:3] * perpendicular(point - self.joint_d)
-        # v = dp/dti  ->  Q = F·dp/dti
-        return np.einsum("ij,ij->i", force, v)
+        # Q = F·dp/dti
+        return np.einsum("ij,ij->i", force, self.point_rate(bar, point))
 
     def angle_rate(self, bar: BarId) -> np.ndarray:
         """dθ_bar/dti (0 para la barra fija)."""
@@ -80,31 +92,58 @@ class EffortTravelCurve:
         theta_end: float,
         branch: int = 1,
         samples: int = 200,
+        force_origin: Point | None = None,
+        bar: BarId = BarId.COUPLER,
     ):
+        """
+        coupler_point: punto P de aplicación, en coordenadas locales de
+            `bar` (por defecto el acoplador).
+        force_origin: punto fijo S (global) donde se apoya la fuerza, p.ej.
+            el bulón de un amortiguador o cilindro. Si se da, la fuerza
+            actúa en la línea S -> P y el recorrido es la carrera |SP|-|SP|₀.
+        """
+        if bar == BarId.GROUND:
+            raise ValueError("The force must act on a moving bar")
         self.dynamics = dynamics
         self.kinematics = dynamics.kinematics
         self.coupler_point = coupler_point
+        self.bar = bar
+        self.force_origin = force_origin
         self.branch = branch
         self.direction = float(np.sign(theta_end - theta_start)) or 1.0
         theta = np.linspace(theta_start, theta_end, samples)
         self.table, self.valid = self.build_table(theta)
-        self.point = self.table.to_global(BarId.COUPLER,
-                                          coupler_point.to_array())
-        self.travel = np.concatenate(([0.0], np.cumsum(np.linalg.norm(
+        self.point = self.table.to_global(bar, coupler_point.to_array())
+        self.arc_length = np.concatenate(([0.0], np.cumsum(np.linalg.norm(
             np.diff(self.point, axis=0), axis=1))))
-        # Fuerza unitaria tangente en P -> fuerza generalizada
-        tangent_q = self.direction * np.linalg.norm(
-            self.table.gamma[:, :1] * perpendicular(
-                self.table.joint_b - self.table.joint_a)
-            + self.table.gamma[:, 1:2] * perpendicular(
-                self.point - self.table.joint_b), axis=1)
-        self.actuator_q = tangent_q
-        self.valid &= np.abs(tangent_q) > 1e-12
+        rate = self.table.point_rate(bar, self.point)
+        if force_origin is None:
+            # Fuerza unitaria tangente en P -> fuerza generalizada
+            self.force_direction = (self.direction * rate / np.maximum(
+                np.linalg.norm(rate, axis=1), 1e-300)[:, None])
+            self.travel = self.arc_length
+        else:
+            line = self.point - force_origin.to_array()
+            self.force_length = np.linalg.norm(line, axis=1)
+            if np.any(self.force_length[self.valid] < 1e-12):
+                raise ValueError("force_origin coincides with the force point")
+            self.force_direction = line / np.maximum(
+                self.force_length, 1e-300)[:, None]
+            first = int(np.argmax(self.valid))
+            self.travel = self.force_length - self.force_length[first]
+        self.actuator_q = np.einsum("ij,ij->i", self.force_direction, rate)
+        self.valid &= np.abs(self.actuator_q) > 1e-12
         self.base = self.compute_base_terms()
 
     @property
     def theta_input(self) -> np.ndarray:
         return self.table.theta_input
+
+    def actuator(self, index: int) -> Actuator:
+        """Actuador equivalente (dirección global fija) en la muestra index,
+        para comprobar con FourBarDynamics.solve_required_effort."""
+        return Actuator(bar=self.bar, point=self.coupler_point,
+                        direction=tuple(self.force_direction[index]))
 
     def build_table(
         self, theta: np.ndarray
